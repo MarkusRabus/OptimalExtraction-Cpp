@@ -61,7 +61,8 @@ Eigen::MatrixXd ObtainP(Eigen::MatrixXd &inputImage,
 
 
   // Calculate image variance Vij  
-  calculateImageVariance(imageVariance, inputImage, imageMask, GAIN, RON);
+  calculateImageVariance(imageVariance, inputImage, imageMask, 
+                          minAperture, maxAperture, GAIN, RON);
 
 
   // Calculate the first estimate Sum_i Dij
@@ -109,7 +110,8 @@ Eigen::MatrixXd ObtainP(Eigen::MatrixXd &inputImage,
                           minAperture, maxAperture, rowsInput, colsInput);
 
     
-    calculateImageVariance(newImageVariance, newSpectrum, imageMask, GAIN, RON);
+    calculateImageVariance(newImageVariance, newSpectrum, imageMask, 
+                            minAperture, maxAperture, GAIN, RON);
 
     nrBadPixels = outlierRejection( imageMask, inputImage, newSpectrum, 
                                     newImageVariance, minAperture, maxAperture, 
@@ -200,7 +202,8 @@ Eigen::MatrixXd getSpectrum(Eigen::MatrixXd &inputImage,
   // Start the iterative cosmic ray rejection.
   do{
 
-    calculateImageVariance(imageVariance, inputImage, imageMask, GAIN, RON);
+    calculateImageVariance(imageVariance, inputImage, imageMask, 
+                            minAperture, maxAperture, GAIN, RON);
 
     calculateWNormFactor(weightNormFactor, imageVariance, imageMask, 
                           PMatrix, minAperture, maxAperture);
@@ -241,11 +244,11 @@ Eigen::MatrixXd getSpectrum(Eigen::MatrixXd &inputImage,
 PYBIND11_MODULE(Marsh, m) {
    m.doc() = "Utities to extract spectra"; // optional module docstring
    m.def("ObtainP", &ObtainP, 
-            "Method which returns the spatial light fractions. We assume for 
-            all Matrices: rows are the disperion direction and columns are
-            the spatial direction.");
+            "Method which returns the spatial light fractions. We assume for "
+            "all Matrices: rows are the disperion direction and columns are "
+            "the spatial direction.");
    m.def("getSpectrum", &getSpectrum, 
-            "Method which returns the optimal extracted spectrum.We assume for 
-            all Matrices: rows are the disperion direction and columns are
-            the spatial direction.");
+            "Method which returns the optimal extracted spectrum.We assume for " 
+            "all Matrices: rows are the disperion direction and columns are "
+            "the spatial direction.");
 }

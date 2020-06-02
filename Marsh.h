@@ -16,6 +16,8 @@ size_t rowsInput {0};
 void calculateImageVariance( Eigen::MatrixXd &imageVariance,
                              const Eigen::MatrixXd &inputImage, 
                              const Eigen::MatrixXd &maskImage, 
+                             const Eigen::VectorXd &minAperture, 
+                             const Eigen::VectorXd &maxAperture,
                              const double GAIN, const double READNOISE);
 
 void calculateStandardSpectrum( Eigen::VectorXd &standardSpectrum,
@@ -168,6 +170,8 @@ int CosmicRayRejection( Eigen::MatrixXd &imageMask,
 void calculateImageVariance( Eigen::MatrixXd &imageVariance,
                              const Eigen::MatrixXd &inputImage, 
                              const Eigen::MatrixXd &maskImage, 
+                             const Eigen::VectorXd &minAperture, 
+                             const Eigen::VectorXd &maxAperture,                             
                              const double GAIN, const double READNOISE){
 
 /*
@@ -176,12 +180,14 @@ Calculates the variance of an image:
 */
 
   for(size_t id_j {0}; id_j < (size_t)inputImage.rows(); id_j++){
-    for (size_t id_i {0}; id_i < (size_t)inputImage.cols(); id_i++){
+    //for (size_t id_i {0}; id_i < (size_t)inputImage.cols(); id_i++){
+    for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
       if ( maskImage(id_j, id_i) ){
         imageVariance(id_j,id_i) = std::abs(inputImage(id_j,id_i) / GAIN) 
                                    + std::pow(READNOISE / GAIN, 2.0);
       }
       else{
+        // Many times variances is in the deonminator, to avoid division by 0
         imageVariance(id_j,id_i) = 1e-9;
       }
     }
@@ -230,10 +236,11 @@ E_ij = D_ij/( Sum_i D_ij )
 */
 
   for(size_t id_j {0}; id_j < (size_t)imageVariance.rows(); id_j++){
-    for (size_t id_i {0}; id_i < (size_t)imageVariance.cols(); id_i++){
-    //for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
+    //for (size_t id_i {0}; id_i < (size_t)imageVariance.cols(); id_i++){
+    for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
         if ( imageMask(id_j, id_i) ){
-          invEvariance(id_j, id_i) = std::pow(standardSpectrum(id_j),2) / imageVariance(id_j, id_i);
+          invEvariance(id_j, id_i) = std::pow(standardSpectrum(id_j),2) 
+                                    / imageVariance(id_j, id_i);
         }
         else{
           invEvariance(id_j, id_i) = 0.0;
@@ -258,11 +265,11 @@ E_ij = D_ij/( Sum_i D_ij )
 */
 
   for(size_t id_j {0}; id_j < (size_t)inputImage.rows(); id_j++){
-    for (size_t id_i {0}; id_i < (size_t)inputImage.cols(); id_i++){
-    //for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
+    //for (size_t id_i {0}; id_i < (size_t)inputImage.cols(); id_i++){
+    for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
         if ( imageMask(id_j, id_i) ){
-          weightedE(id_j, id_i) = ( inputImage(id_j, id_i) * standardSpectrum(id_j) ) / 
-                                  imageVariance(id_j, id_i);
+          weightedE(id_j, id_i) = ( inputImage(id_j, id_i) 
+            * standardSpectrum(id_j) ) / imageVariance(id_j, id_i);
         }
         else{
           weightedE(id_j, id_i) = 0.0;
@@ -318,10 +325,10 @@ Q_kij = Sum_k max[ 0, min(S, (S+1)/2 - |x_kj - i|) ]
 
   for (size_t id_k {0}; id_k < npoly; id_k++){
     for (size_t id_j {0}; id_j < rowsInput; id_j++){
-      for (size_t id_i {0}; id_i < colsInput; id_i++){
-      //for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
-        minTerm = std::min((double)polySpacing,0.5 * (double)(polySpacing + 1) - 
-                  std::abs(polyCenters(id_j,id_k) - id_i));
+      //for (size_t id_i {0}; id_i < colsInput; id_i++){
+      for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
+        minTerm = std::min((double)polySpacing,0.5 * (double)(polySpacing + 1) 
+                  - std::abs(polyCenters(id_j,id_k) - id_i));
         QMatrix(id_k, id_i*rowsInput+id_j) = std::max( (double)0,minTerm );
       }
     }
@@ -356,12 +363,12 @@ X_q = Sum_ij ( ( E_ij * Q_kij * j**(n-1) )/sigma_ij**2 )
     for (size_t id_k {1}; id_k <= npoly; id_k++){
       XSum = 0;
       for(size_t id_j {0}; id_j < (size_t)weightedE.rows(); id_j++){
-        for (size_t id_i {0}; id_i < (size_t)weightedE.cols(); id_i++){
-        //for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
+        //for (size_t id_i {0}; id_i < (size_t)weightedE.cols(); id_i++){
+        for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
           if( (QMatrix( (id_k-1), id_i * weightedE.rows()+id_j) != 0.0) 
               && ( imageMask(id_j, id_i) )) { 
-            XSum +=  weightedE(id_j, id_i) * QMatrix( (id_k-1), id_i * weightedE.rows()+id_j) *
-                     JMatrix(id_j, (id_n - 1));
+            XSum +=  weightedE(id_j, id_i) * QMatrix( (id_k-1), id_i 
+                      * weightedE.rows()+id_j) * JMatrix(id_j, (id_n - 1));
           }
         }
       }
@@ -407,8 +414,8 @@ C_qp = Sum_ij ( ( Q_kij * Q_lij * j**(n+m-2) )/sigma_ij**2 )
             CSum = 0;
 
             for(size_t id_j {0}; id_j < (size_t)invEvariance.rows(); id_j++){
-              for (size_t id_i {0}; id_i < (size_t)invEvariance.cols(); id_i++){
-              //for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
+              //for (size_t id_i {0}; id_i < (size_t)invEvariance.cols(); id_i++){
+              for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
 
                 Qkij = QMatrix( (id_k-1), id_i*invEvariance.rows()+id_j);
                 Qlij = QMatrix( (id_l-1), id_i*invEvariance.rows()+id_j);
@@ -507,11 +514,12 @@ P_ij = Sum_k ( Q_kij * G_kj )
   double PSum {0};
   
   for(size_t id_j {0}; id_j < (size_t)PMatrix.rows(); id_j++){
-    for (size_t id_i {0}; id_i < (size_t)PMatrix.cols(); id_i++){
-    //for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
+    //for (size_t id_i {0}; id_i < (size_t)PMatrix.cols(); id_i++){
+    for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
       PSum = 0;
       for(size_t id_k {0}; id_k < npoly; id_k++){
-        PSum += QMatrix( (id_k), id_i*PMatrix.rows() + id_j) * GkjMatrix(id_k,id_j);
+        PSum += QMatrix( (id_k), id_i*PMatrix.rows() + id_j) 
+                * GkjMatrix(id_k,id_j);
       }
       PMatrix(id_j,id_i) = PSum;
     }
@@ -538,8 +546,8 @@ P_ij = P_ij/ Sum_k ( P_ij )
 
   for(size_t id_j {0}; id_j < (size_t)PMatrix.rows(); id_j++){
     NormSum=1e-9;
-    for (size_t id_i {0}; id_i < (size_t)PMatrix.cols(); id_i++){
-    //for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
+    //for (size_t id_i {0}; id_i < (size_t)PMatrix.cols(); id_i++){
+    for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
       NormSum += PMatrix(id_j,id_i);
     }
     for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
@@ -564,9 +572,10 @@ Get new estimate by weighting the standard Spectrum with spatial light fraction
 */
 
   for(size_t id_j {0}; id_j < rowsInput; id_j++){
-    for (size_t id_i {0}; id_i < colsInput; id_i++){
-    //for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
-          newSpectrum(id_j, id_i) = PMatrix(id_j, id_i) * standardSpectrum(id_j);
+    //for (size_t id_i {0}; id_i < colsInput; id_i++){
+    for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
+          newSpectrum(id_j, id_i) = PMatrix(id_j, id_i) 
+                                    * standardSpectrum(id_j);
     }
   }
 
