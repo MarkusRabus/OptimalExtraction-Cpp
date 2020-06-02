@@ -170,6 +170,11 @@ void calculateImageVariance( Eigen::MatrixXd &imageVariance,
                              const Eigen::MatrixXd &maskImage, 
                              const double GAIN, const double READNOISE){
 
+/*
+Calculates the variance of an image: 
+      D_ij/GAIN + (READNOISE/GAIN)**2
+*/
+
   for(size_t id_j {0}; id_j < (size_t)inputImage.rows(); id_j++){
     for (size_t id_i {0}; id_i < (size_t)inputImage.cols(); id_i++){
       if ( maskImage(id_j, id_i) ){
@@ -192,6 +197,11 @@ void calculateStandardSpectrum( Eigen::VectorXd &standardSpectrum,
                                 const Eigen::VectorXd &minAperture, 
                                 const Eigen::VectorXd &maxAperture){
 
+/*
+Simple sum over spatial direction for each wavelenth row.
+Sum_i D_ij
+*/
+
   double Sum {0};
   for(size_t id_j {0}; id_j < (size_t)inputImage.rows(); id_j++){
     Sum=0;
@@ -211,6 +221,13 @@ void calculateInvEvariance( Eigen::MatrixXd &invEvariance,
                             const Eigen::VectorXd &standardSpectrum,
                             const Eigen::VectorXd &minAperture, 
                             const Eigen::VectorXd &maxAperture){
+
+/*
+Calculate the inverse of the variance of E_ij. 
+E_ij is defined by equation (5) in Marsh (1989)
+E_ij = D_ij/( Sum_i D_ij )
+
+*/
 
   for(size_t id_j {0}; id_j < (size_t)imageVariance.rows(); id_j++){
     for (size_t id_i {0}; id_i < (size_t)imageVariance.cols(); id_i++){
@@ -234,6 +251,12 @@ void calculateWeightedE( Eigen::MatrixXd &weightedE,
                          const Eigen::VectorXd &minAperture, 
                          const Eigen::VectorXd &maxAperture){
 
+/*
+Weight E_ij with image variance.
+E_ij is defined by equation (5) in Marsh (1989)
+E_ij = D_ij/( Sum_i D_ij )
+*/
+
   for(size_t id_j {0}; id_j < (size_t)inputImage.rows(); id_j++){
     for (size_t id_i {0}; id_i < (size_t)inputImage.cols(); id_i++){
     //for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
@@ -251,7 +274,16 @@ void calculateWeightedE( Eigen::MatrixXd &weightedE,
 
 void calculateJmatrix(Eigen::MatrixXd &JMatrix){
 
+/*
+Calculates the J polynomial, last term in equation (8) Marsh (1989)
+
+J = j**(n-1)
+
+*/
+
+
   Eigen::VectorXd JNormalised(JMatrix.rows());
+  // use normalized X coordinated to calculate the J polynomial.
   JNormalised =  Eigen::ArrayXd::LinSpaced(JMatrix.rows(),-1., 1.);
 
   for(size_t id_n {0}; id_n < (size_t)JMatrix.cols(); id_n++){
@@ -271,6 +303,16 @@ void calculateQmatrix( Eigen::MatrixXd &QMatrix,
                        size_t rowsInput, 
                        size_t colsInput,
                        size_t npoly){
+
+/*
+Calculates the Q Matrix, by comparing equations (6) and (11) in 
+Marsh (1989), we get for Q:
+
+Q_kij = Sum_k max[ 0, min(S, (S+1)/2 - |x_kj - i|) ]
+
+*/
+
+
 
   double minTerm {0};
 
@@ -297,6 +339,15 @@ void calculateXVector(Eigen::VectorXd &XVector,
                       const Eigen::VectorXd &maxAperture,
                       size_t polyDegree, 
                       size_t npoly){
+
+/*
+Calculates the X vector, as defined in equation A3 (upper equation)
+in Marsh (1989):
+
+X_q = Sum_ij ( ( E_ij * Q_kij * j**(n-1) )/sigma_ij**2 )
+
+*/
+
 
   double XSum {0};
   int XCounter {0};
@@ -331,6 +382,16 @@ void calculateCmatrix(Eigen::MatrixXd &CMatrix,
                       const Eigen::VectorXd &maxAperture,
                       size_t polyDegree, 
                       size_t npoly){
+
+
+/*
+Calculates the C Matrix, as defined in equation A3 (lower equation)
+in Marsh (1989):
+
+C_qp = Sum_ij ( ( Q_kij * Q_lij * j**(n+m-2) )/sigma_ij**2 )
+
+*/
+
 
   
   double CSum {0};
@@ -376,6 +437,15 @@ void calculateAcoeffs(Eigen::MatrixXd &Acoeffs,
                       size_t polyDegree, 
                       size_t npoly){
 
+/*
+Calculate A coefficient, which are the solution of the linear equation:
+C_qp * B_q = X_q
+and where
+A_kn = B_q
+
+*/
+
+
   int ACounter {0};
 
   for(size_t id_n {0}; id_n < polyDegree+1; id_n++){
@@ -394,6 +464,14 @@ void calculateGkjMatrix(Eigen::MatrixXd &GkjMatrix,
                         const Eigen::MatrixXd &Acoeffs, 
                         const Eigen::MatrixXd &JMatrix, 
                         size_t polyDegree){
+
+/*
+Calculate polynomials G_kj equation (8) Marsh 1989:
+
+G_kj = Sum_n ( A_nk * j**(n-1) )
+
+*/
+
 
   double GkjSum {0};
 
@@ -418,6 +496,14 @@ void calculatePMatrix(Eigen::MatrixXd &PMatrix,
                       const Eigen::VectorXd &maxAperture,
                       size_t npoly){
 
+/*
+Calulcate profile P_ij equation (6) in Marsh (1989):
+
+P_ij = Sum_k ( Q_kij * G_kj )
+
+*/
+
+
   double PSum {0};
   
   for(size_t id_j {0}; id_j < (size_t)PMatrix.rows(); id_j++){
@@ -438,6 +524,14 @@ void calculatePMatrix(Eigen::MatrixXd &PMatrix,
 void normalizeP(Eigen::MatrixXd &PMatrix,
                 const Eigen::VectorXd &minAperture, 
                 const Eigen::VectorXd &maxAperture){
+
+/*
+Normalize profile P_ij equation (6) in Marsh (1989):
+
+P_ij = P_ij/ Sum_k ( P_ij )
+
+*/
+
 
   double NormSum {0};
   PMatrix = (PMatrix.array() < 0).select(0, PMatrix);
@@ -464,6 +558,11 @@ void calculateNewSpectrum(Eigen::MatrixXd &newSpectrum,
                           size_t rowsInput, 
                           size_t colsInput ){
 
+/*
+Get new estimate by weighting the standard Spectrum with spatial light fraction
+
+*/
+
   for(size_t id_j {0}; id_j < rowsInput; id_j++){
     for (size_t id_i {0}; id_i < colsInput; id_i++){
     //for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
@@ -481,6 +580,12 @@ int outlierRejection( Eigen::MatrixXd &imageMask,
                       const Eigen::VectorXd &minAperture, 
                       const Eigen::VectorXd &maxAperture,
                       double RejectSigma){
+
+/*
+Outlier rejection, return the number of rejected pixels for P_ij estimate
+
+*/
+
 
   int nrBadPixels {0};
   double SigmaSquared, Ratio;
@@ -511,6 +616,15 @@ void calculateWNormFactor( Eigen::VectorXd &weightNormFactor,
                            const Eigen::VectorXd &minAperture, 
                            const Eigen::VectorXd &maxAperture){
 
+/*
+
+Calculate the the deonminator in equation (4)
+
+Sum_i ( P_i**2/V_i )
+
+*/
+
+
   double weightSum;
   for(size_t id_j {0}; id_j < (size_t)imageMask.rows(); id_j++){
     weightSum = 1e-9;
@@ -533,6 +647,11 @@ void calculateWeight( Eigen::MatrixXd &normalizedWeight,
                       const Eigen::VectorXd &minAperture, 
                       const Eigen::VectorXd &maxAperture){
 
+/*
+Caluclate the weight as defined in equation (4) Marsh (1989).
+W_i = (P_i/V_i)/Sum_i ( P_i**2/V_i )
+ */
+
   for(size_t id_j {0}; id_j < (size_t)imageMask.rows(); id_j++){
     for(size_t id_i = minAperture(id_j); id_i <= maxAperture(id_j); id_i++){
       if( imageMask(id_j, id_i) ){
@@ -550,6 +669,10 @@ void calculateWeightedFlux( Eigen::VectorXd &weightedFlux,
                                const Eigen::MatrixXd &imageMask, 
                                const Eigen::VectorXd &minAperture, 
                                const Eigen::VectorXd &maxAperture){
+
+/*
+Weighted sum across the profile, equation (1) in Marsh (1989)
+*/
 
   double FluxSum;
   for(size_t id_j {0}; id_j < (size_t)imageMask.rows(); id_j++){
@@ -570,6 +693,10 @@ void calculateWeightedVar( Eigen::VectorXd &weightedVariance,
                       const Eigen::MatrixXd &imageMask, 
                       const Eigen::VectorXd &minAperture, 
                       const Eigen::VectorXd &maxAperture){
+
+/*
+Weighted variance across the profile.
+*/
 
 
   double varSum;
@@ -595,6 +722,11 @@ int CosmicRayRejection( Eigen::MatrixXd &imageMask,
                         const Eigen::VectorXd &minAperture, 
                         const Eigen::VectorXd &maxAperture,
                         float cosmicSigma){
+
+/*
+Estimate cosmic rays, if cosmic ray found mask it and return 1. If there is now CR found
+return 0.
+*/
 
 
   int detection {0}, ii {0}, jj {0}, counter {0};
